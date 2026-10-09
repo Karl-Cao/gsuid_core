@@ -8,6 +8,7 @@ from gsuid_core.bot import Bot
 from gsuid_core.i18n import t as i18n_t
 from gsuid_core.logger import logger
 from gsuid_core.models import Event
+from gsuid_core.segment import MessageSegment
 from gsuid_core.message_models import Button
 from gsuid_core.utils.api.mys_api import mys_api
 from gsuid_core.utils.database.models import GsUser
@@ -19,6 +20,7 @@ from gsuid_core.utils.cookie_manager.add_ck import (
 )
 from gsuid_core.utils.cookie_manager.add_fp import deal_fp
 from gsuid_core.utils.cookie_manager.qrlogin import qrcode_login
+from gsuid_core.utils.cookie_manager.verified_game_uid import group_login_game
 
 sv_core_user_config = SV("用户管理", pm=1)
 sv_core_user_add = SV("用户添加")
@@ -158,13 +160,32 @@ async def _send_help(bot: Bot, im):
     )
 
 
-@sv_core_user_qrcode_login.on_fullmatch(("扫码登陆", "扫码登录"), block=True, prefix=False)
+@sv_core_user_qrcode_login.on_fullmatch(
+    ("扫码登陆", "扫码登录", "ys扫码登录", "ys扫码登陆", "zzz扫码登录", "zzz扫码登陆"),
+    block=True,
+    prefix=False,
+)
 @sv_core_user_qrcode_login.on_fullmatch(("扫码登陆", "扫码登录"), block=True)
 async def send_qrcode_login(bot: Bot, ev: Event):
     logger.info(i18n_t("log.core.qr_code_login_start"))
     uid_list = await get_all_bind_uid(ev.bot_id, ev.user_id)
+    group_game_login = ev.bot_id == "qqgroup" and ev.user_type == "group"
+    game_id, game_name, prefix, bind_index = group_login_game(ev.command)
+    if group_game_login and not uid_list[bind_index]:
+        return await bot.send(
+            MessageSegment.markdown(
+                f'<qqbot-at-user id="{ev.user_id}" /> 请先由本人发送 /{prefix}绑定UID 你的{game_name}UID，'
+                f"再发送 /{prefix}扫码登录。"
+            )
+        )
     if any(uid_list):
-        im = await qrcode_login(bot, ev, ev.user_id)
+        im = await qrcode_login(
+            bot,
+            ev,
+            ev.user_id,
+            expected_uid=uid_list[bind_index] if group_game_login else None,
+            expected_game_id=game_id,
+        )
     else:
         return await bot.send(
             await bot.t("您还没有绑定原神/星铁/绝区零/崩坏3的UID！\n请先检查对应插件的帮助说明绑定任一UID...")
@@ -173,6 +194,8 @@ async def send_qrcode_login(bot: Bot, ev: Event):
     if not im:
         return
     im, status = await deal_ck(ev.bot_id, im, ev.user_id)
+    if group_game_login:
+        await bot.send(MessageSegment.markdown(f'<qqbot-at-user id="{ev.user_id}" /> 扫码处理完成，结果见下方。'))
     if status:
         await _send_help(bot, im)
     else:

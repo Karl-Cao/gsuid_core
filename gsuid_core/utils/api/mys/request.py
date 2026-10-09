@@ -61,7 +61,7 @@ class MysApi(SignMysApi):
     # 基础战绩
     # ------------------------------------------------------------------
 
-    @gs_cache(360)
+    @gs_cache(360, skip_int=True)
     async def get_info(self, uid, ck: Optional[str] = None) -> Union[IndexData, int]:
         """角色概览 index。"""
         data = await self.simple_mys_req(PLAYER_INFO, uid, cookie=ck, game_name="gs")
@@ -111,7 +111,7 @@ class MysApi(SignMysApi):
             return cast(BsIndex, data["data"])
         return data
 
-    @gs_cache(3600)
+    @gs_cache(3600, skip_int=True)
     async def get_achievement_info(self, uid: str) -> Union[List[AchievementData], int]:
         server_id = self.get_server_id(uid, "gs")
         data = await self.endpoint_request(
@@ -133,7 +133,7 @@ class MysApi(SignMysApi):
                 data = -999
         return data
 
-    @gs_cache(360)
+    @gs_cache(360, skip_int=True)
     async def get_spiral_abyss_info(
         self, uid: str, schedule_type="1", ck: Optional[str] = None
     ) -> Union[AbyssData, int]:
@@ -153,7 +153,7 @@ class MysApi(SignMysApi):
             data = cast(AbyssData, data["data"])
         return data
 
-    @gs_cache(360)
+    @gs_cache(360, skip_int=True)
     async def get_poetry_abyss_data(
         self,
         uid: str,
@@ -203,7 +203,7 @@ class MysApi(SignMysApi):
             data = cast(Dict, data["data"])
         return data
 
-    @gs_cache(360)
+    @gs_cache(360, skip_int=True)
     async def get_character_list(
         self,
         uid: str,
@@ -234,7 +234,7 @@ class MysApi(SignMysApi):
             characters.append(character)
         return {"list": characters}
 
-    @gs_cache(360)
+    @gs_cache(360, skip_int=True)
     async def get_character(
         self, uid: str, character_ids: List[int], ck: Union[str, None] = None
     ) -> Union[CharDetailData, int]:
@@ -275,7 +275,7 @@ class MysApi(SignMysApi):
             return self._normalize_character_list(data)
         return data
 
-    @gs_cache(360)
+    @gs_cache(360, skip_int=True)
     async def get_character_detail(
         self,
         uid: str,
@@ -301,7 +301,7 @@ class MysApi(SignMysApi):
             data = cast(List[Character], data["data"]["list"])
         return data
 
-    @gs_cache(360)
+    @gs_cache(360, skip_int=True)
     async def get_calculate_info(self, uid, char_id: int) -> Union[CalculateInfo, int]:
         server_id = self.get_server_id(uid, "gs")
         data = await self.simple_mys_req(
@@ -314,7 +314,7 @@ class MysApi(SignMysApi):
             data = cast(CalculateInfo, data["data"])
         return data
 
-    @gs_cache(3600)
+    @gs_cache(3600, skip_int=True)
     async def get_batch_compute_info(
         self, uid: str, items: Union[List[Dict], List[str], List[int]]
     ) -> Union[ComputeData, int]:
@@ -340,7 +340,7 @@ class MysApi(SignMysApi):
             raw_data = cast(ComputeData, raw_data["data"])
         return raw_data
 
-    @gs_cache(360)
+    @gs_cache(360, skip_int=True)
     async def get_mihoyo_bbs_info(
         self,
         mys_id: str,
@@ -409,7 +409,7 @@ class MysApi(SignMysApi):
     # 扩展战绩（自 GenshinUID 上浮）
     # ------------------------------------------------------------------
 
-    @gs_cache(3600)
+    @gs_cache(3600, skip_int=True)
     async def get_season_post_data(self, uid: str) -> Union[SeasonPostData, int]:
         server_id = self.get_server_id(uid, "gs")
         now = datetime.now()
@@ -430,7 +430,7 @@ class MysApi(SignMysApi):
             data = cast(SeasonPostData, data["data"])
         return data
 
-    @gs_cache(360)
+    @gs_cache(360, skip_int=True)
     async def get_hard_challenge_data(self, uid: str) -> Union[HardChallengeData, int]:
         server_id = self.get_server_id(uid, "gs")
         body = {
@@ -451,7 +451,7 @@ class MysApi(SignMysApi):
             data = cast(HardChallengeData, data["data"])
         return data
 
-    @gs_cache(300)
+    @gs_cache(300, skip_int=True)
     async def get_calendar_data(self, uid: str) -> Union[CalendarData, int]:
         server_id = self.get_server_id(uid, "gs")
         body = {"role_id": uid, "server": server_id}
@@ -468,7 +468,7 @@ class MysApi(SignMysApi):
             data = cast(CalendarData, data["data"])
         return data
 
-    @gs_cache(300)
+    @gs_cache(300, skip_int=True)
     async def get_widget_resin_data(self, uid: str) -> Union[WidgetResin, int]:
         data = await self.endpoint_request(
             WIDGET_RESIN,

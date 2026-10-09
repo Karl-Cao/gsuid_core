@@ -19,7 +19,7 @@ IMAGE_CACHE = get_res_path("IMAGE_CACHE")
 CACHE: Dict[float, Dict[str, Union[Path, str]]] = {}
 
 
-def gs_cache(expire_time=3600):
+def gs_cache(expire_time=3600, *, skip_int: bool = False, skip_text: bool = False):
     def wrapper(func):
         is_coroutine = inspect.iscoroutinefunction(func)
 
@@ -53,6 +53,8 @@ def gs_cache(expire_time=3600):
                     value = CACHE[key]
                     if time_key - key <= expire_time:
                         if file_key in value:
+                            if (skip_int and isinstance(value[file_key], int)) or (skip_text and isinstance(value[file_key], str) and not value[file_key].startswith("base64://")):
+                                continue
                             _value = value[file_key]
                             logger.trace(t("log.cache.hit_value", p0=func.__name__, _value=_value))
                             break
@@ -72,6 +74,8 @@ def gs_cache(expire_time=3600):
                     else:
                         result = _value
                 elif result is not None:
+                    if (skip_int and isinstance(result, int)) or (skip_text and isinstance(result, str) and not result.startswith("base64://")):
+                        return result
                     img_data = None
                     cache_target = IMAGE_CACHE / f"{time_key}_{file_key}.jpg"
                     if isinstance(result, Image.Image):
@@ -127,6 +131,8 @@ def gs_cache(expire_time=3600):
                     value = CACHE[key]
                     if time_key - key <= expire_time:
                         if file_key in value:
+                            if (skip_int and isinstance(value[file_key], int)) or (skip_text and isinstance(value[file_key], str) and not value[file_key].startswith("base64://")):
+                                continue
                             _value = value[file_key]
                             logger.trace(t("log.cache.hit_value", p0=func.__name__, _value=_value))
                             break
@@ -146,6 +152,8 @@ def gs_cache(expire_time=3600):
                     else:
                         result = _value
                 elif result is not None:
+                    if (skip_int and isinstance(result, int)) or (skip_text and isinstance(result, str) and not result.startswith("base64://")):
+                        return result
                     img_data = None
                     cache_target = IMAGE_CACHE / f"{time_key}_{file_key}.jpg"
                     if isinstance(result, Image.Image):

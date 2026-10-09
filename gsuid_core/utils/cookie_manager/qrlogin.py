@@ -13,6 +13,7 @@ from gsuid_core.logger import logger
 from gsuid_core.models import Event
 from gsuid_core.segment import MessageSegment
 from gsuid_core.utils.api.mys_api import mys_api
+from gsuid_core.utils.cookie_manager.verified_game_uid import owns_game_uid
 
 
 async def get_qrcode_base64(url: str, path: Path, bot_id: str) -> bytes:
@@ -86,9 +87,20 @@ async def refresh(
     return True, status_data
 
 
-async def qrcode_login(bot: Bot, ev: Event, user_id: str) -> str:
+async def qrcode_login(
+    bot: Bot,
+    ev: Event,
+    user_id: str,
+    expected_uid: str | None = None,
+    expected_game_id: str = "8",
+) -> str:
+    game_name = "原神" if expected_game_id == "2" else "绝区零"
+
     async def send_msg(msg: str):
-        await bot.send(msg)
+        if expected_uid is not None:
+            await bot.send(MessageSegment.markdown(f'<qqbot-at-user id="{ev.user_id}" /> {msg}'))
+        else:
+            await bot.send(msg)
         return ""
 
     code_data = await mys_api.create_hyp_qrcode_url()
@@ -97,9 +109,18 @@ async def qrcode_login(bot: Bot, ev: Event, user_id: str) -> str:
 
     path = Path(__file__).parent / f"{user_id}.gif"
 
+    qr_image = await get_qrcode_base64(code_data["url"], path, ev.bot_id)
     im = []
-    im.append(MessageSegment.text("请使用米游社扫描下方二维码登录："))
-    im.append(MessageSegment.image(await get_qrcode_base64(code_data["url"], path, ev.bot_id)))
+    if expected_uid is not None:
+        im.append(
+            MessageSegment.text(
+                "请本人使用米游社扫描下方二维码。群内所有成员都能看见它，请勿代扫；"
+                f"扫码账号的{game_name} UID 必须与发起人已绑定的 UID 相同，否则不会保存凭据。"
+            )
+        )
+    else:
+        im.append(MessageSegment.text("请使用米游社扫描下方二维码登录："))
+    im.append(MessageSegment.image(qr_image))
     im.append(
         MessageSegment.text(
             "免责声明:您将通过扫码完成获取米游社sk以及ck。\n"
@@ -108,12 +129,39 @@ async def qrcode_login(bot: Bot, ev: Event, user_id: str) -> str:
             "害怕风险请勿扫码~"
         )
     )
-    await bot.send(MessageSegment.node(im))
+    if expected_uid is not None:
+        # Keep the verified image reply and separate real QQ markdown mention.
+        # The image reply also identifies its requester by visible nickname.
+        await bot.send(im)
+        bot.ev.msg_id = ""  # Post-scan status is a new group message.
+    else:
+        await bot.send(MessageSegment.node(im))
 
     if path.exists():
         path.unlink()
 
     status, login_data = await refresh(code_data)
+    return await _finish_qrcode_login(bot, ev, user_id, expected_uid, status, login_data, expected_game_id)
+
+
+async def _finish_qrcode_login(
+    bot: Bot,
+    ev: Event,
+    user_id: str,
+    expected_uid: str | None,
+    status: bool,
+    login_data: Any,
+    expected_game_id: str = "8",
+) -> str:
+    game_name = "原神" if expected_game_id == "2" else "绝区零"
+
+    async def send_msg(msg: str):
+        if expected_uid is not None:
+            await bot.send(MessageSegment.markdown(f'<qqbot-at-user id="{ev.user_id}" /> {msg}'))
+        else:
+            await bot.send(msg)
+        return ""
+
     if status:
         assert login_data is not None  # 骗过 pyright
         tokens = login_data.get("tokens", [])
@@ -139,6 +187,20 @@ async def qrcode_login(bot: Bot, ev: Event, user_id: str) -> str:
         ck = await mys_api.get_cookie_token_by_stoken(stoken, account_id, app_cookie)
         if isinstance(ck, int):
             return await send_msg("[登录]获取CK失败...")
+
+        if expected_uid is not None:
+            # A group QR is visible to everyone. Never persist the scanned account
+            # unless it actually owns the command sender's bound ZZZ game UID.
+            account_cookie = f"account_id={account_id};cookie_token={ck['cookie_token']}"
+            try:
+                roles = await mys_api.get_mihoyo_bbs_info(account_id, account_cookie)
+            except Exception:
+                logger.warning(t("log.cookie.stoken_fail"))
+                return await send_msg(f"[登录]无法核对扫码账号的{game_name}UID，凭据未保存。请稍后重试。")
+            if not isinstance(roles, list):
+                return await send_msg(f"[登录]无法核对扫码账号的{game_name}UID，凭据未保存。请稍后重试。")
+            if not owns_game_uid(roles, expected_uid, expected_game_id):
+                return await send_msg(f"[登录]扫码账号与发起人的{game_name}UID不符，凭据未保存。请本人重新扫码。")
 
         return SimpleCookie(
             {
